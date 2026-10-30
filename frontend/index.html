@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Objective Ride-Sharing & Fleet Matching Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #38bdf8;
+      --text: #f8fafc;
+      --text-sub: #94a3b8;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    .header { text-align: center; margin-bottom: 25px; }
+    .header h1 { margin: 0 0 5px 0; color: var(--accent); }
+    .header p { margin: 0; color: var(--text-sub); }
+    .container {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 20px;
+      max-width: 1350px;
+      margin: 0 auto;
+    }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); margin-bottom: 20px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .metric-card { background: #334155; padding: 15px; border-radius: 8px; text-align: center; }
+    .metric-value { font-size: 24px; font-weight: bold; color: var(--accent); margin-top: 5px; }
+    .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+    .zone-box { background: #334155; padding: 12px; border-radius: 8px; text-align: center; border: 2px solid transparent; }
+    .surge-badge { font-weight: bold; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; font-size: 12px; }
+    button { background: var(--accent); color: #0f172a; border: none; padding: 10px; width: 100%; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px; }
+    button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Multi-Objective Ride-Sharing & Fleet Matching Platform</h1>
+  <p>Optimization Techniques Term Project | IIT Patna</p>
+</div>
+
+<div class="container">
+  <div>
+    <div class="card">
+      <h3>Simulation Control</h3>
+      <p style="font-size: 13px; color: var(--text-sub);">Run real-time optimization cycle across city grid zones.</p>
+      <button onclick="fetchSimulationData()">Run Simulation Step</button>
+    </div>
+
+    <div class="card">
+      <h3>City Zones Heatmap</h3>
+      <div class="grid-container" id="zone-grid"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div>Total Matches</div>
+        <div class="metric-value" id="res-matches">0</div>
+      </div>
+      <div class="metric-card">
+        <div>Platform Revenue</div>
+        <div class="metric-value" id="res-revenue">₹0</div>
+      </div>
+      <div class="metric-card">
+        <div>Avg Wait Time</div>
+        <div class="metric-value" id="res-wait">0 min</div>
+      </div>
+      <div class="metric-card">
+        <div>Active Fleet</div>
+        <div class="metric-value" id="res-fleet">0</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <canvas id="revenueChart" height="120"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+  let chart;
+
+  async function fetchSimulationData() {
+    try {
+      let res = await fetch('http://127.0.0.1:5000/api/simulate');
+      let data = await res.json();
+
+      document.getElementById('res-matches').innerText = data.summary.total_matches;
+      document.getElementById('res-revenue').innerText = '₹' + data.summary.total_revenue;
+      document.getElementById('res-wait').innerText = data.summary.avg_wait_time + ' min';
+      document.getElementById('res-fleet').innerText = data.summary.active_fleet;
+
+      renderZones(data.zones);
+      updateChart(data.zones);
+    } catch (err) {
+      console.error("Backend connection error:", err);
+    }
+  }
+
+  function renderZones(zones) {
+    let grid = document.getElementById('zone-grid');
+    grid.innerHTML = '';
+    zones.forEach(z => {
+      let color = z.optimal_surge > 1.8 ? '#ef4444' : (z.optimal_surge > 1.2 ? '#eab308' : '#22c55e');
+      let box = document.createElement('div');
+      box.className = 'zone-box';
+      box.innerHTML = `
+        <div style="font-size: 12px; font-weight: bold;">${z.zone_id}</div>
+        <div class="surge-badge" style="background:${color}; color:#fff;">${z.optimal_surge}x</div>
+        <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Matches: ${z.matched_rides}</div>
+      `;
+      grid.appendChild(box);
+    });
+  }
+
+  function updateChart(zones) {
+    let labels = zones.map(z => z.zone_id);
+    let revenues = zones.map(z => z.zone_revenue);
+    let matches = zones.map(z => z.matched_rides);
+
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = revenues;
+    chart.data.datasets[1].data = matches;
+    chart.update();
+  }
+
+  window.onload = () => {
+    let ctx = document.getElementById('revenueChart').getContext('2d');
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Zone Revenue (₹)', data: [], backgroundColor: '#38bdf8', yAxisID: 'y' },
+          { label: 'Matched Rides', data: [], backgroundColor: '#4ade80', yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { title: { display: true, text: 'Real-Time Zone Performance & Revenue Breakdown', color: '#f8fafc' } },
+        scales: {
+          y: { type: 'linear', position: 'left', ticks: { color: '#94a3b8' } },
+          y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#94a3b8' } }
+        }
+      }
+    });
+
+    fetchSimulationData();
+  };
+</script>
+</body>
+</html>
