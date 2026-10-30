@@ -9,7 +9,7 @@ CORS(app)
 engine = RideSharingSimulationEngine()
 
 @app.route("/")
-def serve_frontend():
+def def serve_frontend():
     return send_from_directory(app.static_folder, "index.html")
 
 @app.route("/api/simulate", methods=["GET"])
